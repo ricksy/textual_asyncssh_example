@@ -1,19 +1,33 @@
-import asyncio
 import asyncssh
-from textual.app import App
-from textual.widgets import Button, Static
+import asyncio
 
-class MyApp(App):
-    async def on_mount(self) -> None:
-        await self.view.dock(Static("Welcome to My SSH App!"), edge="top")
-        await self.view.dock(Button("Click Me"), edge="left")
+class MySSHServer(asyncssh.SSHServer):
+    def connection_made(self, conn):
+        print('Connection made to SSH server.')
 
-async def handle_client(process):
-    app = MyApp()
-    await app.run_async()
+    def session_requested(self):
+        return MySSHServerSession()
+
+    def begin_auth(self, username):
+        # Disable authentication
+        return False
+
+class MySSHServerSession(asyncssh.SSHServerSession):
+    def shell_requested(self):
+        return self
+
+    def connection_made(self, chan):
+        self._chan = chan
+        self._chan.write('Hello, World\n')
+        self._chan.close()
 
 async def start_server():
-    await asyncssh.create_server(handle_client, '', 2222)
+    await asyncssh.create_server(
+        MySSHServer, '', 8022,
+        server_host_keys=['ssh_host_key']
+    )
 
-asyncio.run(start_server())
+loop = asyncio.get_event_loop()
+loop.run_until_complete(start_server())
+loop.run_forever()
 
